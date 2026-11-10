@@ -52,13 +52,12 @@
     <div id="listaAlumnos"><p>Cargando datos desde Supabase...</p></div>
 </div>
 
-<!-- Importamos la librería de Supabase -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
-    // ⚠️ CONFIGURA AQUÍ TUS DATOS
+    // ⚠️ CONFIGURA AQUÍ TUS DATOS (Mantén las comillas simples)
     const SUPABASE_URL = 'https://dcoeyqyagwxmkqjqdapl.supabase.co'; 
-    const SUPABASE_KEY = 'https://dcoeyqyagwxmkqjqdapl.supabase.co; // La que empieza con sb_publishable_
+    const SUPABASE_KEY = 'sb_publishable_9Lf5YRw5r5d1sxWbKY-rIA_PAWqhhog';
 
     const { createClient } = supabase;
     const clienteSupabase = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -73,7 +72,7 @@
 
         if (error) {
             console.error('Error al cargar:', error);
-            alert('Error al conectar con la base de datos. Revisa la consola.');
+            document.getElementById('listaAlumnos').innerHTML = '<p style="color:red;">Error al conectar con la base de datos. Revisa la consola (F12).</p>';
             return;
         }
         alumnosCargados = data;
@@ -104,7 +103,6 @@
         filtrados.forEach(alumno => {
             const div = document.createElement('div');
             div.className = 'alumno-card';
-            // Escapamos las comillas para evitar errores en el onclick
             const accionSegura = (alumno.accion || '').replace(/'/g, "\\'");
             div.innerHTML = `
                 <div class="dato"><span class="etiqueta">Alumno:</span> ${alumno.nombre}</div>
