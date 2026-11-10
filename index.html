@@ -2,11 +2,11 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Seguimiento Jurídico - Alumnos</title>
+    <title>Seguimiento Jurídico - Alumnos (Nube)</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f4; }
         .contenedor { max-width: 950px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        input, textarea, select, button { width: 100%; padding: 8px; margin: 5px 0 15px 0; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+        input, textarea, button { width: 100%; padding: 8px; margin: 5px 0 15px 0; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
         button { background-color: #007bff; color: white; border: none; cursor: pointer; font-weight: bold; }
         button:hover { background-color: #0056b3; }
         .alumno-card { border-left: 5px solid #007bff; background: #f9f9f9; padding: 12px; margin-bottom: 12px; border-radius: 4px; }
@@ -14,194 +14,172 @@
         .dato { margin: 3px 0; }
         .etiqueta { font-weight: bold; color: #333; }
         hr { margin: 20px 0; }
-        .obligatorio { border: 2px solid #dc3545 !important; }
         .buscador { display: flex; gap: 10px; align-items: center; margin-bottom: 15px; }
         .buscador input { margin: 0; flex: 1; }
-        .buscador button { width: auto; margin: 0; padding: 8px 15px; background-color: #6c757d; }
-        .buscador button:hover { background-color: #5a6268; }
-        .aviso { font-size: 0.85em; color: #dc3545; margin-top: -10px; margin-bottom: 10px; }
     </style>
 </head>
 <body>
 
 <div class="contenedor">
-    <h2>Registro de Alumnos Derivados (Jurídico)</h2>
-    <p class="aviso">Los campos con borde rojo son obligatorios.</p>
+    <h2>Registro de Alumnos (Conectado a la Nube)</h2>
     
-    <!-- Formulario para agregar alumno -->
-    <input type="text" id="nombre" placeholder="Nombre completo del alumno *" class="obligatorio">
-    <input type="text" id="cuenta" placeholder="Número de cuenta *" class="obligatorio">
+    <input type="text" id="nombre" placeholder="Nombre completo del alumno *">
+    <input type="text" id="cuenta" placeholder="Número de cuenta *">
     <input type="email" id="correoAlumno" placeholder="Correo del alumno">
     <input type="text" id="telefono" placeholder="Teléfono del alumno">
     
     <hr>
     
-    <input type="text" id="tutor" placeholder="Nombre del tutor *" class="obligatorio">
+    <input type="text" id="tutor" placeholder="Nombre del tutor *">
     <input type="email" id="correoTutor" placeholder="Correo del tutor">
-    <input type="text" id="telefonoTutor" placeholder="Teléfono del tutor *" class="obligatorio">
+    <input type="text" id="telefonoTutor" placeholder="Teléfono del tutor *">
     
     <hr>
     
-    <input type="text" id="referido" placeholder="Quién lo deriva (ej. Lic. García) *" class="obligatorio">
+    <input type="text" id="referido" placeholder="Quién lo deriva (ej. Lic. García) *">
     <input type="date" id="fecha">
-    <textarea id="accion" placeholder="Acción inmediata / Nota inicial (ej. Se recibió reporte de jurídico)"></textarea>
+    <textarea id="accion" placeholder="Acción inmediata / Nota inicial"></textarea>
     
-    <button onclick="guardarAlumno()">Guardar Registro</button>
+    <button onclick="guardarAlumno()">Guardar Registro en la Nube</button>
 
     <hr>
-
     <h3>Listado de Alumnos</h3>
     
-    <!-- Buscador -->
     <div class="buscador">
-        <input type="text" id="busqueda" placeholder="Buscar por nombre, cuenta, tutor o correo..." oninput="mostrarAlumnos()">
-        <button onclick="limpiarBusqueda()">Limpiar</button>
+        <input type="text" id="busqueda" placeholder="Buscar..." oninput="mostrarAlumnos()">
     </div>
 
-    <div id="listaAlumnos"></div>
+    <div id="listaAlumnos"><p>Cargando datos desde Supabase...</p></div>
 </div>
 
-<script>
-    // 1. Cargar datos al abrir la página
-    let alumnos = JSON.parse(localStorage.getItem('alumnosJuridico')) || [];
+<!-- Importamos la librería de Supabase -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-    // 2. Función para mostrar los datos en pantalla (con filtro de búsqueda)
+<script>
+    // ⚠️ CONFIGURA AQUÍ TUS DATOS
+    const SUPABASE_URL = 'https://dcoeyqyagwxmkqjqdapl.supabase.co'; 
+    const SUPABASE_KEY = 'https://dcoeyqyagwxmkqjqdapl.supabase.co; // La que empieza con sb_publishable_
+
+    const { createClient } = supabase;
+    const clienteSupabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    let alumnosCargados = [];
+
+    async function cargarAlumnos() {
+        const { data, error } = await clienteSupabase
+            .from('alumnos')
+            .select('*')
+            .order('id', { ascending: false });
+
+        if (error) {
+            console.error('Error al cargar:', error);
+            alert('Error al conectar con la base de datos. Revisa la consola.');
+            return;
+        }
+        alumnosCargados = data;
+        mostrarAlumnos();
+    }
+
     function mostrarAlumnos() {
         const contenedor = document.getElementById('listaAlumnos');
         const textoBusqueda = document.getElementById('busqueda').value.toLowerCase().trim();
         contenedor.innerHTML = '';
 
-        if (alumnos.length === 0) {
+        if (!alumnosCargados || alumnosCargados.length === 0) {
             contenedor.innerHTML = '<p>No hay alumnos registrados aún.</p>';
             return;
         }
 
-        // Filtrar alumnos según la búsqueda
-        const filtrados = alumnos
-            .map((alumno, indice) => ({ alumno, indice }))
-            .filter(({ alumno }) => {
-                if (textoBusqueda === '') return true;
-                const campos = [
-                    alumno.nombre,
-                    alumno.cuenta,
-                    alumno.tutor,
-                    alumno.correoAlumno,
-                    alumno.correoTutor,
-                    alumno.referido
-                ];
-                return campos.some(campo => (campo || '').toLowerCase().includes(textoBusqueda));
-            });
+        const filtrados = alumnosCargados.filter(alumno => {
+            if (textoBusqueda === '') return true;
+            const campos = [alumno.nombre, alumno.cuenta, alumno.tutor, alumno.correo_alumno];
+            return campos.some(campo => (campo || '').toLowerCase().includes(textoBusqueda));
+        });
 
         if (filtrados.length === 0) {
-            contenedor.innerHTML = '<p>No se encontraron alumnos con ese criterio de búsqueda.</p>';
+            contenedor.innerHTML = '<p>No se encontraron resultados.</p>';
             return;
         }
 
-        filtrados.forEach(({ alumno, indice }) => {
+        filtrados.forEach(alumno => {
             const div = document.createElement('div');
             div.className = 'alumno-card';
+            // Escapamos las comillas para evitar errores en el onclick
+            const accionSegura = (alumno.accion || '').replace(/'/g, "\\'");
             div.innerHTML = `
-                <div class="dato"><span class="etiqueta">Alumno:</span> ${alumno.nombre || ''}</div>
-                <div class="dato"><span class="etiqueta">Número de cuenta:</span> ${alumno.cuenta || 'No registrado'}</div>
-                <div class="dato"><span class="etiqueta">Correo alumno:</span> ${alumno.correoAlumno || 'No registrado'}</div>
-                <div class="dato"><span class="etiqueta">Teléfono alumno:</span> ${alumno.telefono || 'No registrado'}</div>
-                <div class="dato"><span class="etiqueta">Tutor:</span> ${alumno.tutor || 'No registrado'}</div>
-                <div class="dato"><span class="etiqueta">Correo tutor:</span> ${alumno.correoTutor || 'No registrado'}</div>
-                <div class="dato"><span class="etiqueta">Teléfono tutor:</span> ${alumno.telefonoTutor || 'No registrado'}</div>
-                <div class="dato"><span class="etiqueta">Referido por:</span> ${alumno.referido || ''}</div>
-                <div class="dato"><span class="etiqueta">Fecha de ingreso:</span> ${alumno.fecha || ''}</div>
-                <div class="historial"><strong>Historial de acciones:</strong><br>${alumno.accion || ''}</div>
-                <button onclick="agregarSeguimiento(${indice})" style="width: auto; margin-top:8px; font-size:0.8em; background-color: #28a745;">+ Añadir Acción/Cita</button>
-                <button onclick="borrarAlumno(${indice})" style="width: auto; margin-top:8px; font-size:0.8em; background-color: #dc3545;">Eliminar</button>
+                <div class="dato"><span class="etiqueta">Alumno:</span> ${alumno.nombre}</div>
+                <div class="dato"><span class="etiqueta">Cuenta:</span> ${alumno.cuenta}</div>
+                <div class="dato"><span class="etiqueta">Tutor:</span> ${alumno.tutor} (${alumno.telefono_tutor || 'Sin tel'})</div>
+                <div class="dato"><span class="etiqueta">Referido por:</span> ${alumno.referido}</div>
+                <div class="historial"><strong>Historial:</strong><br>${alumno.accion || 'Sin acciones'}</div>
+                <button onclick="agregarSeguimiento(${alumno.id}, '${accionSegura}')" style="width: auto; margin-top:8px; font-size:0.8em; background-color: #28a745;">+ Añadir Acción</button>
+                <button onclick="borrarAlumno(${alumno.id})" style="width: auto; margin-top:8px; font-size:0.8em; background-color: #dc3545;">Eliminar</button>
             `;
             contenedor.appendChild(div);
         });
     }
 
-    // 3. Función para guardar un alumno nuevo (con validación de obligatorios)
-    function guardarAlumno() {
+    async function guardarAlumno() {
         const nombre = document.getElementById('nombre').value.trim();
         const cuenta = document.getElementById('cuenta').value.trim();
-        const correoAlumno = document.getElementById('correoAlumno').value.trim();
-        const telefono = document.getElementById('telefono').value.trim();
         const tutor = document.getElementById('tutor').value.trim();
-        const correoTutor = document.getElementById('correoTutor').value.trim();
         const telefonoTutor = document.getElementById('telefonoTutor').value.trim();
         const referido = document.getElementById('referido').value.trim();
-        const fecha = document.getElementById('fecha').value;
-        const accion = document.getElementById('accion').value.trim();
-
-        // Validación de campos obligatorios
-        const faltantes = [];
-        if (nombre === '') faltantes.push('Nombre del alumno');
-        if (cuenta === '') faltantes.push('Número de cuenta');
-        if (tutor === '') faltantes.push('Nombre del tutor');
-        if (telefonoTutor === '') faltantes.push('Teléfono del tutor');
-        if (referido === '') faltantes.push('Quién lo deriva');
-
-        if (faltantes.length > 0) {
-            alert('Faltan los siguientes campos obligatorios:\n- ' + faltantes.join('\n- '));
+        
+        if (!nombre || !cuenta || !tutor || !telefonoTutor || !referido) {
+            alert('Llena los campos obligatorios (*)');
             return;
         }
 
         const nuevoAlumno = {
             nombre: nombre,
             cuenta: cuenta,
-            correoAlumno: correoAlumno,
-            telefono: telefono,
+            correo_alumno: document.getElementById('correoAlumno').value.trim(),
+            telefono: document.getElementById('telefono').value.trim(),
             tutor: tutor,
-            correoTutor: correoTutor,
-            telefonoTutor: telefonoTutor,
+            correo_tutor: document.getElementById('correoTutor').value.trim(),
+            telefono_tutor: telefonoTutor,
             referido: referido,
-            fecha: fecha,
-            accion: accion ? `Ingreso ${fecha || ''}: ${accion}` : `Ingreso ${fecha || ''}`
+            fecha: document.getElementById('fecha').value || null,
+            accion: document.getElementById('accion').value.trim() ? `Ingreso: ${document.getElementById('accion').value.trim()}` : ''
         };
 
-        alumnos.push(nuevoAlumno);
-        localStorage.setItem('alumnosJuridico', JSON.stringify(alumnos));
+        const { error } = await clienteSupabase.from('alumnos').insert([nuevoAlumno]);
 
-        // Limpiar formulario
-        document.getElementById('nombre').value = '';
-        document.getElementById('cuenta').value = '';
-        document.getElementById('correoAlumno').value = '';
-        document.getElementById('telefono').value = '';
-        document.getElementById('tutor').value = '';
-        document.getElementById('correoTutor').value = '';
-        document.getElementById('telefonoTutor').value = '';
-        document.getElementById('referido').value = '';
-        document.getElementById('fecha').value = '';
-        document.getElementById('accion').value = '';
-
-        mostrarAlumnos();
+        if (error) {
+            alert('Error al guardar: ' + error.message);
+        } else {
+            document.querySelectorAll('input, textarea').forEach(el => el.value = '');
+            cargarAlumnos();
+        }
     }
 
-    // 4. Función para agregar una acción extra (citas/notas)
-    function agregarSeguimiento(indice) {
-        const nuevaAccion = prompt("Escribe la nueva acción o cita (ej. 'Cita agendada para el 15/11'):");
+    async function agregarSeguimiento(id, accionActual) {
+        const nuevaAccion = prompt("Escribe la nueva acción o cita:");
         if (nuevaAccion && nuevaAccion.trim() !== '') {
             const fechaHoy = new Date().toLocaleDateString();
-            alumnos[indice].accion = (alumnos[indice].accion || '') + `\n${fechaHoy}: ${nuevaAccion.trim()}`;
-            localStorage.setItem('alumnosJuridico', JSON.stringify(alumnos));
-            mostrarAlumnos();
+            const textoNuevo = (accionActual ? accionActual + '\n' : '') + `${fechaHoy}: ${nuevaAccion.trim()}`;
+            
+            const { error } = await clienteSupabase
+                .from('alumnos')
+                .update({ accion: textoNuevo })
+                .eq('id', id);
+
+            if (error) alert('Error al actualizar');
+            else cargarAlumnos();
         }
     }
 
-    // 5. Función para borrar
-    function borrarAlumno(indice) {
+    async function borrarAlumno(id) {
         if (confirm('¿Seguro que quieres eliminar este registro?')) {
-            alumnos.splice(indice, 1);
-            localStorage.setItem('alumnosJuridico', JSON.stringify(alumnos));
-            mostrarAlumnos();
+            const { error } = await clienteSupabase.from('alumnos').delete().eq('id', id);
+            if (error) alert('Error al borrar');
+            else cargarAlumnos();
         }
     }
 
-    // 6. Limpiar buscador
-    function limpiarBusqueda() {
-        document.getElementById('busqueda').value = '';
-        mostrarAlumnos();
-    }
-
-    mostrarAlumnos();
+    // Iniciar
+    cargarAlumnos();
 </script>
 
 </body>
