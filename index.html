@@ -16,12 +16,19 @@
         hr { margin: 20px 0; }
         .buscador { display: flex; gap: 10px; align-items: center; margin-bottom: 15px; }
         .buscador input { margin: 0; flex: 1; }
+        .btn-editar { background-color: #ffc107; color: black; }
+        .btn-editar:hover { background-color: #e0a800; }
+        
+        /* Estilos nuevos para la edición */
+        .btn-cancelar { background-color: #6c757d; display: none; margin-top: 5px; }
+        .btn-cancelar:hover { background-color: #5a6268; }
+        .modo-edicion { border: 3px solid #28a745 !important; box-shadow: 0 0 10px rgba(40, 167, 69, 0.5); }
     </style>
 </head>
 <body>
 
-<div class="contenedor">
-    <h2>Registro de Alumnos (Conectado a la Nube)</h2>
+<div class="contenedor" id="panel-formulario">
+    <h2 id="titulo-formulario">Registro de Alumnos (Conectado a la Nube)</h2>
     
     <input type="text" id="nombre" placeholder="Nombre completo del alumno *">
     <input type="text" id="cuenta" placeholder="Número de cuenta *">
@@ -40,7 +47,11 @@
     <input type="date" id="fecha">
     <textarea id="accion" placeholder="Acción inmediata / Nota inicial"></textarea>
     
-    <button onclick="guardarAlumno()">Guardar Registro en la Nube</button>
+    <!-- Contenedor para el ID oculto cuando editamos -->
+    <input type="hidden" id="idEdicion" value="">
+
+    <button id="btn-guardar" onclick="guardarAlumno()">Guardar Registro en la Nube</button>
+    <button id="btn-cancelar" class="btn-cancelar" onclick="cancelarEdicion()">Cancelar Edición</button>
 
     <hr>
     <h3>Listado de Alumnos</h3>
@@ -72,7 +83,7 @@
 
         if (error) {
             console.error('Error al cargar:', error);
-            document.getElementById('listaAlumnos').innerHTML = '<p style="color:red;">Error al conectar con la base de datos. Revisa la consola (F12).</p>';
+            document.getElementById('listaAlumnos').innerHTML = '<p style="color:red;">Error al conectar con la base de datos.</p>';
             return;
         }
         alumnosCargados = data;
@@ -103,21 +114,36 @@
         filtrados.forEach(alumno => {
             const div = document.createElement('div');
             div.className = 'alumno-card';
-            const accionSegura = (alumno.accion || '').replace(/'/g, "\\'");
+            // Reemplazamos el prompt de seguimiento por un textarea temporal en la lista (para Chromebooks)
             div.innerHTML = `
                 <div class="dato"><span class="etiqueta">Alumno:</span> ${alumno.nombre}</div>
                 <div class="dato"><span class="etiqueta">Cuenta:</span> ${alumno.cuenta}</div>
+                <div class="dato"><span class="etiqueta">Correo Alumno:</span> ${alumno.correo_alumno || 'No registrado'}</div>
+                <div class="dato"><span class="etiqueta">Teléfono Alumno:</span> ${alumno.telefono || 'No registrado'}</div>
                 <div class="dato"><span class="etiqueta">Tutor:</span> ${alumno.tutor} (${alumno.telefono_tutor || 'Sin tel'})</div>
+                <div class="dato"><span class="etiqueta">Correo Tutor:</span> ${alumno.correo_tutor || 'No registrado'}</div>
                 <div class="dato"><span class="etiqueta">Referido por:</span> ${alumno.referido}</div>
                 <div class="historial"><strong>Historial:</strong><br>${alumno.accion || 'Sin acciones'}</div>
-                <button onclick="agregarSeguimiento(${alumno.id}, '${accionSegura}')" style="width: auto; margin-top:8px; font-size:0.8em; background-color: #28a745;">+ Añadir Acción</button>
-                <button onclick="borrarAlumno(${alumno.id})" style="width: auto; margin-top:8px; font-size:0.8em; background-color: #dc3545;">Eliminar</button>
+                
+                <!-- Input oculto para nueva acción -->
+                <div id="div-accion-${alumno.id}" style="display: none; margin-top: 10px;">
+                    <input type="text" id="input-accion-${alumno.id}" placeholder="Escribe la nueva cita o acción aquí...">
+                    <button onclick="guardarNuevaAccion(${alumno.id})" style="background-color: #28a745; margin-top: 0;">Guardar Acción</button>
+                </div>
+
+                <div style="margin-top: 10px; display: flex; gap: 5px; flex-wrap: wrap;">
+                    <button onclick="mostrarInputAccion(${alumno.id})" id="btn-add-accion-${alumno.id}" style="width: auto; margin: 0; font-size:0.8em; background-color: #28a745;">+ Añadir Acción</button>
+                    <button onclick="prepararEdicion(${alumno.id})" class="btn-editar" style="width: auto; margin: 0; font-size:0.8em;">Editar</button>
+                    <button onclick="borrarAlumno(${alumno.id}, '${alumno.nombre}')" style="width: auto; margin: 0; font-size:0.8em; background-color: #dc3545;">Eliminar</button>
+                </div>
             `;
             contenedor.appendChild(div);
         });
     }
 
     async function guardarAlumno() {
+        const idEdicion = document.getElementById('idEdicion').value;
+        
         const nombre = document.getElementById('nombre').value.trim();
         const cuenta = document.getElementById('cuenta').value.trim();
         const tutor = document.getElementById('tutor').value.trim();
@@ -125,11 +151,12 @@
         const referido = document.getElementById('referido').value.trim();
         
         if (!nombre || !cuenta || !tutor || !telefonoTutor || !referido) {
-            alert('Llena los campos obligatorios (*)');
+            // Usamos un texto en la página en lugar de alert() por si acaso
+            alert('Faltan campos obligatorios (*)'); 
             return;
         }
 
-        const nuevoAlumno = {
+        const datosAlumno = {
             nombre: nombre,
             cuenta: cuenta,
             correo_alumno: document.getElementById('correoAlumno').value.trim(),
@@ -137,39 +164,124 @@
             tutor: tutor,
             correo_tutor: document.getElementById('correoTutor').value.trim(),
             telefono_tutor: telefonoTutor,
-            referido: referido,
-            fecha: document.getElementById('fecha').value || null,
-            accion: document.getElementById('accion').value.trim() ? `Ingreso: ${document.getElementById('accion').value.trim()}` : ''
+            referido: referido
         };
 
-        const { error } = await clienteSupabase.from('alumnos').insert([nuevoAlumno]);
+        let errorDB;
 
-        if (error) {
-            alert('Error al guardar: ' + error.message);
+        if (idEdicion) {
+            // ES UNA EDICIÓN
+            const { error } = await clienteSupabase.from('alumnos').update(datosAlumno).eq('id', idEdicion);
+            errorDB = error;
         } else {
-            document.querySelectorAll('input, textarea').forEach(el => el.value = '');
+            // ES UN NUEVO REGISTRO
+            datosAlumno.fecha = document.getElementById('fecha').value || null;
+            datosAlumno.accion = document.getElementById('accion').value.trim() ? `Ingreso: ${document.getElementById('accion').value.trim()}` : '';
+            
+            const { error } = await clienteSupabase.from('alumnos').insert([datosAlumno]);
+            errorDB = error;
+        }
+
+        if (errorDB) {
+            alert('Error al guardar: ' + errorDB.message);
+        } else {
+            cancelarEdicion(); // Limpia el formulario y vuelve a modo normal
             cargarAlumnos();
         }
     }
 
-    async function agregarSeguimiento(id, accionActual) {
-        const nuevaAccion = prompt("Escribe la nueva acción o cita:");
-        if (nuevaAccion && nuevaAccion.trim() !== '') {
-            const fechaHoy = new Date().toLocaleDateString();
-            const textoNuevo = (accionActual ? accionActual + '\n' : '') + `${fechaHoy}: ${nuevaAccion.trim()}`;
-            
-            const { error } = await clienteSupabase
-                .from('alumnos')
-                .update({ accion: textoNuevo })
-                .eq('id', id);
+    // Función para pasar los datos de la tarjeta al formulario de arriba
+    function prepararEdicion(id) {
+        const alumno = alumnosCargados.find(a => a.id === id);
+        if (!alumno) return;
 
-            if (error) alert('Error al actualizar');
-            else cargarAlumnos();
-        }
+        // Llenamos los campos
+        document.getElementById('nombre').value = alumno.nombre || '';
+        document.getElementById('cuenta').value = alumno.cuenta || '';
+        document.getElementById('correoAlumno').value = alumno.correo_alumno || '';
+        document.getElementById('telefono').value = alumno.telefono || '';
+        document.getElementById('tutor').value = alumno.tutor || '';
+        document.getElementById('correoTutor').value = alumno.correo_tutor || '';
+        document.getElementById('telefonoTutor').value = alumno.telefono_tutor || '';
+        document.getElementById('referido').value = alumno.referido || '';
+        
+        // Deshabilitamos la fecha y la nota inicial porque no se editan aquí
+        document.getElementById('fecha').value = alumno.fecha || '';
+        document.getElementById('fecha').disabled = true;
+        document.getElementById('accion').value = '';
+        document.getElementById('accion').disabled = true;
+        document.getElementById('accion').placeholder = "No puedes editar el historial desde aquí (Usa 'Añadir Acción')";
+
+        // Guardamos el ID
+        document.getElementById('idEdicion').value = id;
+
+        // Cambiamos la interfaz
+        document.getElementById('titulo-formulario').innerText = "Editando Alumno: " + alumno.nombre;
+        document.getElementById('panel-formulario').classList.add('modo-edicion');
+        
+        const btnGuardar = document.getElementById('btn-guardar');
+        btnGuardar.innerText = "Guardar Cambios";
+        btnGuardar.style.backgroundColor = "#28a745"; // Verde
+        
+        document.getElementById('btn-cancelar').style.display = "block";
+
+        // Subimos la pantalla para que vea el formulario
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
-    async function borrarAlumno(id) {
-        if (confirm('¿Seguro que quieres eliminar este registro?')) {
+    function cancelarEdicion() {
+        // Limpiar campos
+        document.querySelectorAll('input[type="text"], input[type="email"], input[type="date"], textarea').forEach(el => {
+            el.value = '';
+            el.disabled = false;
+        });
+        document.getElementById('accion').placeholder = "Acción inmediata / Nota inicial";
+        document.getElementById('idEdicion').value = '';
+
+        // Restaurar interfaz
+        document.getElementById('titulo-formulario').innerText = "Registro de Alumnos (Conectado a la Nube)";
+        document.getElementById('panel-formulario').classList.remove('modo-edicion');
+        
+        const btnGuardar = document.getElementById('btn-guardar');
+        btnGuardar.innerText = "Guardar Registro en la Nube";
+        btnGuardar.style.backgroundColor = "#007bff"; // Azul
+        
+        document.getElementById('btn-cancelar').style.display = "none";
+    }
+
+    // --- NUEVA FORMA DE AGREGAR ACCIONES (Sin prompt) ---
+    function mostrarInputAccion(id) {
+        document.getElementById(`div-accion-${id}`).style.display = 'block';
+        document.getElementById(`btn-add-accion-${id}`).style.display = 'none';
+        document.getElementById(`input-accion-${id}`).focus();
+    }
+
+    async function guardarNuevaAccion(id) {
+        const input = document.getElementById(`input-accion-${id}`);
+        const nuevaAccion = input.value.trim();
+        
+        if (!nuevaAccion) {
+            alert("Escribe algo primero.");
+            return;
+        }
+
+        const alumno = alumnosCargados.find(a => a.id === id);
+        const fechaHoy = new Date().toLocaleDateString();
+        const textoNuevo = (alumno.accion ? alumno.accion + '\n' : '') + `${fechaHoy}: ${nuevaAccion}`;
+        
+        const { error } = await clienteSupabase
+            .from('alumnos')
+            .update({ accion: textoNuevo })
+            .eq('id', id);
+
+        if (error) alert('Error al actualizar');
+        else cargarAlumnos();
+    }
+
+    // --- ELIMINAR SIN PROMPT ---
+    async function borrarAlumno(id, nombre) {
+        // Usamos confirm (que sí suele funcionar en Chromebooks, si no, avísame)
+        if (confirm(`¿Seguro que quieres eliminar a ${nombre}?`)) {
             const { error } = await clienteSupabase.from('alumnos').delete().eq('id', id);
             if (error) alert('Error al borrar');
             else cargarAlumnos();
