@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Seguimiento Jurídico - Alumnos (Nube)</title>
+    <title>Seguimiento Jurídico - Alumnos</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f4; }
         .contenedor { max-width: 950px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
@@ -18,49 +18,71 @@
         .buscador input { margin: 0; flex: 1; }
         .btn-editar { background-color: #ffc107; color: black; }
         .btn-editar:hover { background-color: #e0a800; }
-        
-        /* Estilos nuevos para la edición */
         .btn-cancelar { background-color: #6c757d; display: none; margin-top: 5px; }
-        .btn-cancelar:hover { background-color: #5a6268; }
         .modo-edicion { border: 3px solid #28a745 !important; box-shadow: 0 0 10px rgba(40, 167, 69, 0.5); }
+        
+        /* Estilos para el Login */
+        #pantalla-login { max-width: 400px; margin: 50px auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); text-align: center; }
+        #sistema-alumnos { display: none; /* Oculto por defecto */ }
+        .barra-usuario { display: flex; justify-content: space-between; align-items: center; background: #333; color: white; padding: 10px 20px; border-radius: 8px; margin-bottom: 20px; }
+        .barra-usuario button { width: auto; margin: 0; padding: 5px 15px; background-color: #dc3545; }
     </style>
 </head>
 <body>
 
-<div class="contenedor" id="panel-formulario">
-    <h2 id="titulo-formulario">Registro de Alumnos (Conectado a la Nube)</h2>
-    
-    <input type="text" id="nombre" placeholder="Nombre completo del alumno *">
-    <input type="text" id="cuenta" placeholder="Número de cuenta *">
-    <input type="email" id="correoAlumno" placeholder="Correo del alumno">
-    <input type="text" id="telefono" placeholder="Teléfono del alumno">
-    
-    <hr>
-    
-    <input type="text" id="tutor" placeholder="Nombre del tutor *">
-    <input type="email" id="correoTutor" placeholder="Correo del tutor">
-    <input type="text" id="telefonoTutor" placeholder="Teléfono del tutor *">
-    
-    <hr>
-    
-    <input type="text" id="referido" placeholder="Quién lo deriva (ej. Lic. García) *">
-    <input type="date" id="fecha">
-    <textarea id="accion" placeholder="Acción inmediata / Nota inicial"></textarea>
-    
-    <!-- Contenedor para el ID oculto cuando editamos -->
-    <input type="hidden" id="idEdicion" value="">
+<!-- ================= PANTALLA DE LOGIN ================= -->
+<div id="pantalla-login">
+    <h2>Acceso al Sistema</h2>
+    <p style="color: #666; font-size: 0.9em;">Ingresa tus credenciales para ver el seguimiento</p>
+    <input type="email" id="login-email" placeholder="Correo electrónico">
+    <input type="password" id="login-password" placeholder="Contraseña">
+    <button onclick="iniciarSesion()">Entrar</button>
+    <p id="login-error" style="color: red; font-size: 0.9em;"></p>
+</div>
 
-    <button id="btn-guardar" onclick="guardarAlumno()">Guardar Registro en la Nube</button>
-    <button id="btn-cancelar" class="btn-cancelar" onclick="cancelarEdicion()">Cancelar Edición</button>
-
-    <hr>
-    <h3>Listado de Alumnos</h3>
+<!-- ================= SISTEMA DE ALUMNOS ================= -->
+<div id="sistema-alumnos">
     
-    <div class="buscador">
-        <input type="text" id="busqueda" placeholder="Buscar..." oninput="mostrarAlumnos()">
+    <div class="barra-usuario">
+        <span>Conectado como: <strong id="usuario-activo">Cargando...</strong></span>
+        <button onclick="cerrarSesion()">Cerrar Sesión</button>
     </div>
 
-    <div id="listaAlumnos"><p>Cargando datos desde Supabase...</p></div>
+    <div class="contenedor" id="panel-formulario">
+        <h2 id="titulo-formulario">Registro de Alumnos</h2>
+        
+        <input type="text" id="nombre" placeholder="Nombre completo del alumno *">
+        <input type="text" id="cuenta" placeholder="Número de cuenta *">
+        <input type="email" id="correoAlumno" placeholder="Correo del alumno">
+        <input type="text" id="telefono" placeholder="Teléfono del alumno">
+        
+        <hr>
+        
+        <input type="text" id="tutor" placeholder="Nombre del tutor *">
+        <input type="email" id="correoTutor" placeholder="Correo del tutor">
+        <input type="text" id="telefonoTutor" placeholder="Teléfono del tutor *">
+        
+        <hr>
+        
+        <input type="text" id="referido" placeholder="Quién lo deriva (ej. Lic. García) *">
+        <input type="date" id="fecha">
+        <textarea id="accion" placeholder="Acción inmediata / Nota inicial"></textarea>
+        
+        <input type="hidden" id="idEdicion" value="">
+
+        <button id="btn-guardar" onclick="guardarAlumno()">Guardar Registro en la Nube</button>
+        <button id="btn-cancelar" class="btn-cancelar" onclick="cancelarEdicion()">Cancelar Edición</button>
+
+        <hr>
+        <h3>Listado de Alumnos</h3>
+        
+        <div class="buscador">
+            <input type="text" id="busqueda" placeholder="Buscar..." oninput="mostrarAlumnos()">
+        </div>
+
+        <div id="listaAlumnos"></div>
+    </div>
+
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -75,6 +97,56 @@
 
     let alumnosCargados = [];
 
+    // ================= 1. LÓGICA DE LOGIN =================
+
+    // Función para iniciar sesión
+    async function iniciarSesion() {
+        const email = document.getElementById('login-email').value.trim();
+        const password = document.getElementById('login-password').value;
+        const errorTxt = document.getElementById('login-error');
+
+        errorTxt.innerText = "Verificando...";
+
+        const { data, error } = await clienteSupabase.auth.signInWithPassword({
+            email: email,
+            password: password,
+        });
+
+        if (error) {
+            errorTxt.innerText = "Error: " + error.message;
+        } else {
+            errorTxt.innerText = "";
+            revisarSesion(); // Entramos al sistema
+        }
+    }
+
+    // Función para cerrar sesión
+    async function cerrarSesion() {
+        await clienteSupabase.auth.signOut();
+        revisarSesion();
+    }
+
+    // Función que revisa si ya hay alguien logueado al abrir la página
+    async function revisarSesion() {
+        const { data: { session } } = await clienteSupabase.auth.getSession();
+        
+        if (session) {
+            // Hay sesión activa
+            document.getElementById('pantalla-login').style.display = 'none';
+            document.getElementById('sistema-alumnos').style.display = 'block';
+            document.getElementById('usuario-activo').innerText = session.user.email;
+            cargarAlumnos(); // Cargamos los datos de la base
+        } else {
+            // No hay sesión
+            document.getElementById('pantalla-login').style.display = 'block';
+            document.getElementById('sistema-alumnos').style.display = 'none';
+            document.getElementById('login-password').value = '';
+        }
+    }
+
+
+    // ================= 2. LÓGICA DEL SISTEMA (IGUAL QUE ANTES) =================
+
     async function cargarAlumnos() {
         const { data, error } = await clienteSupabase
             .from('alumnos')
@@ -83,7 +155,6 @@
 
         if (error) {
             console.error('Error al cargar:', error);
-            document.getElementById('listaAlumnos').innerHTML = '<p style="color:red;">Error al conectar con la base de datos.</p>';
             return;
         }
         alumnosCargados = data;
@@ -114,7 +185,6 @@
         filtrados.forEach(alumno => {
             const div = document.createElement('div');
             div.className = 'alumno-card';
-            // Reemplazamos el prompt de seguimiento por un textarea temporal en la lista (para Chromebooks)
             div.innerHTML = `
                 <div class="dato"><span class="etiqueta">Alumno:</span> ${alumno.nombre}</div>
                 <div class="dato"><span class="etiqueta">Cuenta:</span> ${alumno.cuenta}</div>
@@ -125,7 +195,6 @@
                 <div class="dato"><span class="etiqueta">Referido por:</span> ${alumno.referido}</div>
                 <div class="historial"><strong>Historial:</strong><br>${alumno.accion || 'Sin acciones'}</div>
                 
-                <!-- Input oculto para nueva acción -->
                 <div id="div-accion-${alumno.id}" style="display: none; margin-top: 10px;">
                     <input type="text" id="input-accion-${alumno.id}" placeholder="Escribe la nueva cita o acción aquí...">
                     <button onclick="guardarNuevaAccion(${alumno.id})" style="background-color: #28a745; margin-top: 0;">Guardar Acción</button>
@@ -143,7 +212,6 @@
 
     async function guardarAlumno() {
         const idEdicion = document.getElementById('idEdicion').value;
-        
         const nombre = document.getElementById('nombre').value.trim();
         const cuenta = document.getElementById('cuenta').value.trim();
         const tutor = document.getElementById('tutor').value.trim();
@@ -151,7 +219,6 @@
         const referido = document.getElementById('referido').value.trim();
         
         if (!nombre || !cuenta || !tutor || !telefonoTutor || !referido) {
-            // Usamos un texto en la página en lugar de alert() por si acaso
             alert('Faltan campos obligatorios (*)'); 
             return;
         }
@@ -170,14 +237,11 @@
         let errorDB;
 
         if (idEdicion) {
-            // ES UNA EDICIÓN
             const { error } = await clienteSupabase.from('alumnos').update(datosAlumno).eq('id', idEdicion);
             errorDB = error;
         } else {
-            // ES UN NUEVO REGISTRO
             datosAlumno.fecha = document.getElementById('fecha').value || null;
             datosAlumno.accion = document.getElementById('accion').value.trim() ? `Ingreso: ${document.getElementById('accion').value.trim()}` : '';
-            
             const { error } = await clienteSupabase.from('alumnos').insert([datosAlumno]);
             errorDB = error;
         }
@@ -185,17 +249,15 @@
         if (errorDB) {
             alert('Error al guardar: ' + errorDB.message);
         } else {
-            cancelarEdicion(); // Limpia el formulario y vuelve a modo normal
+            cancelarEdicion();
             cargarAlumnos();
         }
     }
 
-    // Función para pasar los datos de la tarjeta al formulario de arriba
     function prepararEdicion(id) {
         const alumno = alumnosCargados.find(a => a.id === id);
         if (!alumno) return;
 
-        // Llenamos los campos
         document.getElementById('nombre').value = alumno.nombre || '';
         document.getElementById('cuenta').value = alumno.cuenta || '';
         document.getElementById('correoAlumno').value = alumno.correo_alumno || '';
@@ -205,32 +267,27 @@
         document.getElementById('telefonoTutor').value = alumno.telefono_tutor || '';
         document.getElementById('referido').value = alumno.referido || '';
         
-        // Deshabilitamos la fecha y la nota inicial porque no se editan aquí
         document.getElementById('fecha').value = alumno.fecha || '';
         document.getElementById('fecha').disabled = true;
         document.getElementById('accion').value = '';
         document.getElementById('accion').disabled = true;
-        document.getElementById('accion').placeholder = "No puedes editar el historial desde aquí (Usa 'Añadir Acción')";
+        document.getElementById('accion').placeholder = "Usa el botón verde para añadir al historial";
 
-        // Guardamos el ID
         document.getElementById('idEdicion').value = id;
 
-        // Cambiamos la interfaz
         document.getElementById('titulo-formulario').innerText = "Editando Alumno: " + alumno.nombre;
         document.getElementById('panel-formulario').classList.add('modo-edicion');
         
         const btnGuardar = document.getElementById('btn-guardar');
         btnGuardar.innerText = "Guardar Cambios";
-        btnGuardar.style.backgroundColor = "#28a745"; // Verde
+        btnGuardar.style.backgroundColor = "#28a745";
         
         document.getElementById('btn-cancelar').style.display = "block";
 
-        // Subimos la pantalla para que vea el formulario
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     function cancelarEdicion() {
-        // Limpiar campos
         document.querySelectorAll('input[type="text"], input[type="email"], input[type="date"], textarea').forEach(el => {
             el.value = '';
             el.disabled = false;
@@ -238,18 +295,16 @@
         document.getElementById('accion').placeholder = "Acción inmediata / Nota inicial";
         document.getElementById('idEdicion').value = '';
 
-        // Restaurar interfaz
-        document.getElementById('titulo-formulario').innerText = "Registro de Alumnos (Conectado a la Nube)";
+        document.getElementById('titulo-formulario').innerText = "Registro de Alumnos";
         document.getElementById('panel-formulario').classList.remove('modo-edicion');
         
         const btnGuardar = document.getElementById('btn-guardar');
         btnGuardar.innerText = "Guardar Registro en la Nube";
-        btnGuardar.style.backgroundColor = "#007bff"; // Azul
+        btnGuardar.style.backgroundColor = "#007bff";
         
         document.getElementById('btn-cancelar').style.display = "none";
     }
 
-    // --- NUEVA FORMA DE AGREGAR ACCIONES (Sin prompt) ---
     function mostrarInputAccion(id) {
         document.getElementById(`div-accion-${id}`).style.display = 'block';
         document.getElementById(`btn-add-accion-${id}`).style.display = 'none';
@@ -269,18 +324,13 @@
         const fechaHoy = new Date().toLocaleDateString();
         const textoNuevo = (alumno.accion ? alumno.accion + '\n' : '') + `${fechaHoy}: ${nuevaAccion}`;
         
-        const { error } = await clienteSupabase
-            .from('alumnos')
-            .update({ accion: textoNuevo })
-            .eq('id', id);
+        const { error } = await clienteSupabase.from('alumnos').update({ accion: textoNuevo }).eq('id', id);
 
         if (error) alert('Error al actualizar');
         else cargarAlumnos();
     }
 
-    // --- ELIMINAR SIN PROMPT ---
     async function borrarAlumno(id, nombre) {
-        // Usamos confirm (que sí suele funcionar en Chromebooks, si no, avísame)
         if (confirm(`¿Seguro que quieres eliminar a ${nombre}?`)) {
             const { error } = await clienteSupabase.from('alumnos').delete().eq('id', id);
             if (error) alert('Error al borrar');
@@ -288,8 +338,8 @@
         }
     }
 
-    // Iniciar
-    cargarAlumnos();
+    // Iniciar revisando si hay sesión
+    revisarSesion();
 </script>
 
 </body>
